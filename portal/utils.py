@@ -20,7 +20,6 @@ class FaceRecogniser:
 
     # Initialize Variables
     facedict = {}
-    actions = {}
 
     # Define Emotions
     emotions = ["angry", "happy", "sad", "neutral"]
@@ -35,15 +34,7 @@ class FaceRecogniser:
             print("Error: You do not have a trained model, please run program with --update flag first")
             return False
 
-    def readExcelMapping(self):
-
-        # Read Emotion-Song Mapping from Excel
-        df = pandas.read_excel("EmotionLinks.xlsx") #open Excel file
-        self.actions["angry"] = [x for x in df.angry.dropna()] #We need de dropna() when columns are uneven in length, which creates NaN values at missing places. The OS won't know what to do with these if we try to open them.
-        self.actions["happy"] = [x for x in df.happy.dropna()]
-        self.actions["sad"] = [x for x in df.sad.dropna()]
-        self.actions["neutral"] = [x for x in df.neutral.dropna()]
-
+    
     def open_stuff(self, filename): 
         """Open the file using native system player"""
         print("Playing: "+filename)
@@ -144,15 +135,9 @@ class FaceRecogniser:
         recognized_emotion = self.emotions[max(set(predictions), key=predictions.count)]
         
         print("I think you're %s" %recognized_emotion)
+        return recognized_emotion
         
-        # get list of files for detected emotion
-        actionlist = [x for x in self.actions[recognized_emotion]] 
-        # Randomly shuffle the list
-        random.shuffle(actionlist) 
-        # Open the first entry in the list
-        # self.open_stuff(actionlist[0])
-        return actionlist[0] 
-
+    
     def process_image(self, image):
         """Captures and returns a single frame from webcam"""
         # ret, frame = self.video_capture.read()
@@ -162,10 +147,14 @@ class FaceRecogniser:
         clahe_image = clahe.apply(gray)
         return clahe_image
 
-    def run_detection(self):
+    def run_detection(self, images):
         """Starts the detection"""
         print("Detecting Face")
-        self.recognize_emotion()
+
+        for image in images:
+            self.detect_face(image)
+        
+        return self.recognize_emotion()
 
 class update:
 
@@ -248,3 +237,30 @@ class update:
     #     metascore.append(correct)
 
     # print("\n\nend score:", np.mean(metascore), "percent correct!")
+
+
+class SongPredictor:
+
+    actions = {}
+
+    def __init__(self):
+        self.readExcelMapping()
+
+    def readExcelMapping(self):
+
+        # Read Emotion-Song Mapping from Excel
+        df = pandas.read_excel("EmotionLinks.xlsx") #open Excel file
+        self.actions["angry"] = [x for x in df.angry.dropna()] #We need de dropna() when columns are uneven in length, which creates NaN values at missing places. The OS won't know what to do with these if we try to open them.
+        self.actions["happy"] = [x for x in df.happy.dropna()]
+        self.actions["sad"] = [x for x in df.sad.dropna()]
+        self.actions["neutral"] = [x for x in df.neutral.dropna()]
+
+
+    def choose_random_action(self, emotion):
+        # get list of files for detected emotion
+        actionlist = [x for x in self.actions[emotion]] 
+        # Randomly shuffle the list
+        random.shuffle(actionlist) 
+        # Open the first entry in the list
+        # self.open_stuff(actionlist[0])
+        return actionlist[0] 

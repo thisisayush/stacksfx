@@ -6,4 +6,6 @@ app_name = "portal"
 urlpatterns = [
     path("", IndexView, name="home"),
     path("processImages/", FaceDetectionView, name="process-image"),
+    path("detect-mood/", MoodDetectionView, name="detect-mood"),
+    path("music/<mood>/", GetEmotionSongView, name="get-emotion-music"),
 ]

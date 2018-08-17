@@ -5,18 +5,40 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <title>Page Title</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css" integrity="sha384-MCw98/SFnGE8fJT3GXwEOngsV7Zt27NXFoaoApmYm81iuXoPkFOJwJ8ERdknLPMO" crossorigin="anonymous">
+
     <!-- <link rel="stylesheet" type="text/css" media="screen" href="main.css" /> -->
     <!-- <script src="main.js"></script> -->
 </head>
 <body>
     {% csrf_token %}
-    <video id="video">Camera Feed Initializing</video>
-    <canvas id="canvas">
-    </canvas>
-    <div id="capturedFrames">
-    </div>  
-    <script src="https://code.jquery.com/jquery-3.3.1.min.js">
-    </script>
+    <div class="container-fluid" id="faceDetector">
+        <video id="video">Camera Feed Initializing</video>
+        <canvas id="canvas">
+        </canvas>
+        <div>
+            <div class="alert alert-info" id="mainAlert">
+    
+            </div>
+        </div>
+        <div>
+            <div class="progress">
+                <div class="progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="0" style="width:0%" id="imageProgress"></div>
+            </div>
+        </div>
+        <div id="capturedFrames">
+        </div>
+    </div>
+    <div class="container-fluid" id="moodDetector">
+        
+    </div>
+    <audio id="musicPlayer" controls="controls">
+        <source id="mpSource1" src=""></source>
+    </audio>
+    <script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.3/umd/popper.min.js" integrity="sha384-ZMP7rVo3mIykV+2+9J3UJ46jBk0WLaUAdn689aCwoqbBJiSnjAK/l8WvCWPIPm49" crossorigin="anonymous"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/js/bootstrap.min.js" integrity="sha384-ChfqqxuZUCnJSK3+MXmPNIyE6ZbWh2IMqE241rYiqJxyMiZ6OW/JmZQ5stwEULTy" crossorigin="anonymous"></script>
     <script>
         /** CSRF Protection **/
         var csrf = $("[name=csrfmiddlewaretoken]").val();
@@ -33,9 +55,13 @@
         });
         /** End CSRF Protection **/
         
-        var imageSuccessCount = 0;
+        var imageSuccessCount = 0, imagePending = 0;
+        var imageData = [];
         var canvas = document.getElementById("canvas");
         var video = document.getElementById("video");
+        var alert = $("#mainAlert");
+        var progress = $("#imageProgress");
+        var vstream = null;
         function GetCameraPermissions(){
             if(!navigator.mediaDevices){
                 alert("MediaDevices API is not supported on your browser! Exiting!");
@@ -45,6 +71,7 @@
 
         function cameraInitialized(stream){ 
             video.srcObject = stream;
+            vstream = stream;
             video.play();
         }
         
@@ -52,7 +79,10 @@
 
         function startCapturingFrames(){
             var timer = setInterval(function(){
-                if(imageSuccessCount<16){
+                
+                progress.css("width", (imageSuccessCount*100/16) + "%");
+
+                if(imageSuccessCount<16 && imagePending<=5){
                     canvas.width = video.videoWidth;
                     canvas.height = video.videoHeight;
                     var context = canvas.getContext('2d');
@@ -60,11 +90,53 @@
                     var data = canvas.toDataURL();
                     sendImageFrame(data);
                     addFrame(data);
-                    imageSuccessCount++;
+                    imagePending++;
                 }else{
+                    alert.html("Completed!");
+                    vstream.getTracks()[0].stop();
                     clearInterval(timer);
+                    startMoodDetection();
                 }
             }, 250);
+        }
+
+        function startMoodDetection(){
+            $("#faceDetector").fadeOut();
+            $("#moodDetector").fadeIn();
+            $("#moodDetector").html("Detecting Mood!");
+            var images = {};
+            for(var i in imageData){
+                var key = "image"+i;
+                var value = imageData[i];
+                images[key] = value;
+            }
+            $.ajax({
+                url: "{% url 'portal:detect-mood' %}",
+                data: images,
+                type: 'POST',
+                success: function(response){
+                    if(response['success'] == true){
+                        $("#moodDetector").html("You're " + response['mood'] + ", aren't you? <br> Fetching music for you!");
+                        loadMusic(response['mood']);
+                    }
+                    else
+                        $("#moodDetector").html(response['msg']);
+                }
+            })
+        }
+        
+        function loadMusic(emotion){
+            var ajaxURL = "{% url 'portal:get-emotion-music' 'placeholder'%}";
+            ajaxURL = ajaxURL.replace("placeholder", emotion);
+            $.ajax({
+                url: ajaxURL,
+                method: 'GET',
+                success: function(response){
+                    document.getElementById("mpSource1").src = response;
+                    document.getElementById("musicPlayer").load();
+                    document.getElementById("musicPlayer").play();
+                }
+            })
         }
 
         function getB64Data(data){
@@ -82,11 +154,15 @@
                 data: postData,
                 type: 'POST',
                 success: function(response){
-                    if(response['status'] == 1){
-                        console.log("Image Validated!");
+                    if(response['status'] == true){
+                        alert.html("Image Validated!");
+                        imageSuccessCount++;
+                        imageData.push(b64Image);
                     }else{
-                        console.log(response['msg']);
+                        alert.html(response['msg']);
+                        imageSuccessCount--;
                     }
+                    imagePending--;
                 }
             });
         }

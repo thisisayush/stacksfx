@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Page Title</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- <link rel="stylesheet" type="text/css" media="screen" href="main.css" /> -->
+    <!-- <script src="main.js"></script> -->
+</head>
+<body>
+    {% csrf_token %}
+    <video id="video">Camera Feed Initializing</video>
+    <canvas id="canvas">
+    </canvas>
+    <div id="capturedFrames">
+    </div>  
+    <script src="https://code.jquery.com/jquery-3.3.1.min.js">
+    </script>
+    <script>
+        /** CSRF Protection **/
+        var csrf = $("[name=csrfmiddlewaretoken]").val();
+        function csrfSafeMethod(method) {
+            // these HTTP methods do not require CSRF protection
+            return (/^(GET|HEAD|OPTIONS|TRACE)$/.test(method));
+        }
+        $.ajaxSetup({
+            beforeSend: function(xhr, settings) {
+                if (!csrfSafeMethod(settings.type) && !this.crossDomain) {
+                    xhr.setRequestHeader("X-CSRFToken", csrf);
+                }
+            }
+        });
+        /** End CSRF Protection **/
+        
+        var imageSuccessCount = 0;
+        var canvas = document.getElementById("canvas");
+        var video = document.getElementById("video");
+        function GetCameraPermissions(){
+            if(!navigator.mediaDevices){
+                alert("MediaDevices API is not supported on your browser! Exiting!");
+            }
+            return navigator.mediaDevices.getUserMedia({video:true}).then(cameraInitialized);
+        }
+
+        function cameraInitialized(stream){ 
+            video.srcObject = stream;
+            video.play();
+        }
+        
+        video.addEventListener('canplay', startCapturingFrames);
+
+        function startCapturingFrames(){
+            var timer = setInterval(function(){
+                if(imageSuccessCount<16){
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    var context = canvas.getContext('2d');
+                    context.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
+                    var data = canvas.toDataURL();
+                    sendImageFrame(data);
+                    // addFrame(data);
+                    imageSuccessCount++;
+                }else{
+                    clearInterval(timer);
+                }
+            }, 250);
+        }
+
+        function getB64Data(data){
+            // return data;
+            return data.split(",")[1];
+        }
+
+        function sendImageFrame(data){
+            var b64Image = getB64Data(data);
+            var postData = "image="+b64Image;
+
+            $.ajax({
+                url: "{% url 'portal:process-image' %}",
+                data: postData,
+                type: 'POST',
+                success: function(response){
+                    if(response['status'] == 1){
+                        console.log("Image Validated!");
+                    }else{
+                        console.log(response['msg']);
+                    }
+                }
+            });
+        }
+
+        function addFrame(url){
+            var images = document.getElementById("capturedFrames");
+            var img = document.createElement("img");
+            img.setAttribute("src", url);
+            img.style.width = video.videoWidth/8 + "px";
+
+            images.appendChild(img);
+        }
+        GetCameraPermissions();
+
+    </script>
+</body>
+</html>

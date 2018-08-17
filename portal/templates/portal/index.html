@@ -59,7 +59,7 @@
                     context.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
                     var data = canvas.toDataURL();
                     sendImageFrame(data);
-                    // addFrame(data);
+                    addFrame(data);
                     imageSuccessCount++;
                 }else{
                     clearInterval(timer);
@@ -74,7 +74,8 @@
 
         function sendImageFrame(data){
             var b64Image = getB64Data(data);
-            var postData = "image="+b64Image;
+            var postData = {"image":b64Image};
+            console.log(postData)
 
             $.ajax({
                 url: "{% url 'portal:process-image' %}",

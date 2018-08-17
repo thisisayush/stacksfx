@@ -4,7 +4,6 @@ from django.http import HttpResponse, JsonResponse
 from .utils import *
 import base64
 import time
-
 # Create your views here.
 
 
@@ -20,7 +19,13 @@ def FaceDetectionView(request):
 
     if "image" in request.POST:
         with open("temp/%s.png"%(epoch), "wb") as fh:
-            fh.write(base64.b64decode(request.POST.get("image")))
+            img = request.POST.get('image')
+            
+            missing_padding = len(img) % 4
+            if missing_padding != 0:
+                img += '='* (4 - missing_padding)
+            
+            fh.write(base64.b64decode(img))
 
     f = FaceRecogniser()
     if not f:

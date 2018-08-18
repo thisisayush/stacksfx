@@ -13,7 +13,9 @@ from django.contrib.staticfiles.templatetags.staticfiles import static
 def IndexView(request):
     is_first_run = True
     if "is_first_run" in request.session and request.session['is_first_run'] != True:
-       is_first_run = False
+        is_first_run = False
+        if "sessionid" not in request.session:
+            request.session['sessionid'] = str(time.time())   
     else:
         request.session['sessionid'] = str(time.time())
     

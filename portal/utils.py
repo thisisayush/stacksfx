@@ -144,7 +144,12 @@ class FaceRecogniser:
             predictions.append(pred)
             confidence.append(conf)
         
-        recognized_emotion = self.emotions[max(set(predictions), key=predictions.count)]
+        # print(max(set(predictions), key=predictions.count))
+        ind = max(set(predictions), key=predictions.count)
+        if ind < 0 or ind > len(self.emotions):
+            ind = random.randint(0,len(self.emotions)-1)
+            
+        recognized_emotion = self.emotions[ind]
         
         print("I think you're %s" %recognized_emotion)
         return recognized_emotion

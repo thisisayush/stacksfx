@@ -48,6 +48,24 @@
             left: 0;
             z-index: 999999;
             display: none;
+            animation: animatedBackground 20s linear infinite alternate-reverse;
+        }
+        @keyframes animatedBackground{
+            0%{
+                background-color: #6C7A89;
+            }
+            25%{
+                background-color: #96281B;
+            }
+            50%{
+                background-color: #22313F;
+            }
+            75%{
+                background-color: #049372;
+            }
+            100%{
+                background-color: #E67E22;
+            }
         }
         #faceDetector{
             display: block;
@@ -84,21 +102,29 @@
             font-size: 3em;
         }
         .mood-button{
-            font-size: 1.5em;
+            font-size: 1em;
             margin-top: 10px;
+            margin-bottom: 10px;
             background: transparent;
             border: 2px solid #FFF;
+            border-radius: 10px;
+            font-weight: bold;
             color: #FFF;
             transition: 0.5s all;
             cursor: pointer;
             padding: 5px 15px;
+            display: none;
         }
         .mood-button:hover{
-            background-color: #FFF;
-            color: #1E8BC3;
+            background-color: rgba(255,255,255,0.8);
+            color: rgba(0,0,0,0.7);
         }
         #track-container{
             display: none;
+        }
+        .track-link{
+            color: #FFF;
+            font-weight: 400;
         }
     </style>
 </head>
@@ -127,11 +153,11 @@
                 <i class="far fa-smile-beam mood" data-index="0"></i>
             </div>
             <div class="mood-text">Detecting</div>
-            <button class="retrain mood-button">Retrain</button>
+            <button class="retrain mood-button">Retrain</button> <button class="next mood-button" onclick="javascript:window.location.reload">Next</button>
             <br>
             <div class="row" id="track-container">
                 <div class="col-12">
-                    <img src="" style="width: 50px; height: 50px;" class="track-image"> Title: <a href="#" class="track-link"><span class="track-title"></span></a> Genre: <span class="track-genre"></span>
+                    <img src="" style="width: 50px; height: 50px;" class="track-image"> <strong>Title:</strong> <a href="#" class="track-link"><span class="track-title"></span></a> <strong>Genre:</strong> <span class="track-genre"></span>
                 </div>
                 <audio id="musicPlayer" controls="controls" class="mx-auto mt-3">
                     <source id="mpSource1" src=""></source>
@@ -290,6 +316,7 @@
         }
         
         function loadMusic(emotion){
+            $(".mood-button").fadeIn();
             var ajaxURL = "{% url 'portal:get-emotion-music' 'placeholder'%}";
             ajaxURL = ajaxURL.replace("placeholder", emotion);
             $.ajax({
@@ -325,13 +352,15 @@
                 success: function(response){
                     if(response['status'] == true){
                         alert.html("Working");
-                        imageSuccessCount++;
                         imageData.push(b64Image);
+                        imageSuccessCount = imageData.length;
                     }else{
                         alert.html(response['msg']);
-                        imageSuccessCount--;
+                        if(imageSuccessCount > imageData.length)
+                            imageSuccessCount--;
                     }
-                    imagePending--;
+                    if(imagePending > 0)
+                        imagePending--;
                 }
             });
         }
@@ -347,22 +376,26 @@
 
         function startTrainingMode(){
             $("#moodDetector").fadeOut();
-            $("#train").fadeIn();
+            $("#faceDetector").fadeIn();
+            // $("#train").fadeIn();
             var moods = ["happy", "sad"];
             var train = $("#train");
             images = {};
-            setMoodDetectorIcon("happy", train);
-            setMoodDetectorText("Please Look Happy!", train);
+            // setMoodDetectorIcon("happy", train);
+            // setMoodDetectorText("Please Look Happy!", train);
+            $("#mainAlert").html("Please look Happy");
             var count = 0;
             var timer = setInterval(function(){
                 count++;
                 if(count==4){
                     clearInterval(timer);
-                    setMoodDetectorText("You're Looking Great! It'll be over in a minute", train);
+                    alert.html("You're Looking Great! It'll be over in a minute!")
+                    // setMoodDetectorText("You're Looking Great! It'll be over in a minute", train);
                     resetCaptureFrames();
                     startCapturingFrames(happyCompleted);
                 }else{
-                    setMoodDetectorText("Please Look Happy in "+ (3-count), train);
+                    alert.html("Please Look Happy in "+ (4-count))
+                    // setMoodDetectorText("Please Look Happy in "+ (3-count), train);
                 }
             }, 1000);
             function happyCompleted(){
@@ -371,18 +404,21 @@
                     var value = imageData[i];
                     images[key] = value;
                 }
-                setMoodDetectorIcon("sad", train);
-                setMoodDetectorText("Please Look Sad!", train);
+                // setMoodDetectorIcon("sad", train);
+                // setMoodDetectorText("Please Look Sad!", train);
+                alert.html("Please look sad!")
                 var count = 0;
                 var timer = setInterval(function(){
                     count++;
                     if(count==4){
                         clearInterval(timer);
-                        setMoodDetectorText("Don't Laugh! It'll be over in a moment!", train);
+                        alert.html("Don't laugh! It'll be over in a moment!")
+                        // setMoodDetectorText("Don't Laugh! It'll be over in a moment!", train);
                         resetCaptureFrames();
                         startCapturingFrames(sadCompleted);
                     }else{
-                        setMoodDetectorText("Please Look Sad in " +(3-count), train);
+                        alert.html("Please look sad in " + (4-count))
+                        // setMoodDetectorText("Please Look Sad in " +(3-count), train);
                     }
                 }, 1000);
                 
@@ -393,6 +429,8 @@
                     var value = imageData[i];
                     images[key] = value;
                 }
+                $("#faceDector").fadeOut();
+                $("#train").fadeIn();
                 // resetCaptureFrames();
                 stopCapturingFrames();
                 setMoodDetectorIcon("happy", train);

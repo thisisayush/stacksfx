@@ -7,10 +7,15 @@ import os
 import sys
 import subprocess
 import pandas
-import random
+# import random
 # import Update_Model
 import math
 import base64
+import spotipy
+import spotipy.oauth2 as oauth2
+import requests
+import json
+import random
 
 class FaceRecogniser:
         
@@ -252,24 +257,73 @@ class SongPredictor:
 
     actions = {}
 
-    def __init__(self):
-        self.readExcelMapping()
+    genre_mapping = {
+        "happy": ["pop", "happy", "afrobeat"],
+        "sad": ["sad"]
+    }
 
-    def readExcelMapping(self):
+    # def __init__(self):
+    #     self.populate_from_spotify()
+    #     # self.readExcelMapping()
 
-        # Read Emotion-Song Mapping from Excel
-        df = pandas.read_excel("EmotionLinks.xlsx") #open Excel file
-        #self.actions["angry"] = [x for x in df.angry.dropna()] #We need de dropna() when columns are uneven in length, which creates NaN values at missing places. The OS won't know what to do with these if we try to open them.
-        self.actions["happy"] = [x for x in df.happy.dropna()]
-        self.actions["sad"] = [x for x in df.sad.dropna()]
-        #self.actions["neutral"] = [x for x in df.neutral.dropna()]
+    # def readExcelMapping(self):
 
+    #     # Read Emotion-Song Mapping from Excel
+    #     df = pandas.read_excel("EmotionLinks.xlsx") #open Excel file
+    #     #self.actions["angry"] = [x for x in df.angry.dropna()] #We need de dropna() when columns are uneven in length, which creates NaN values at missing places. The OS won't know what to do with these if we try to open them.
+    #     self.actions["happy"] = [x for x in df.happy.dropna()]
+    #     self.actions["sad"] = [x for x in df.sad.dropna()]
+    #     #self.actions["neutral"] = [x for x in df.neutral.dropna()]
+
+
+    def predict_genre(self, emotion):
+        
+        ind = random.randint(0, len(self.genre_mapping[emotion])-1)
+
+        return self.genre_mapping[emotion][ind]
 
     def choose_random_action(self, emotion):
+        genre = self.predict_genre(emotion)
+        self.populate_from_spotify(genre)
         # get list of files for detected emotion
-        actionlist = [x for x in self.actions[emotion]] 
+        # actionlist = [x for x in self.actions[genre]] 
+        ind = random.randint(0, len(self.actions[genre])-1)
         # Randomly shuffle the list
-        random.shuffle(actionlist) 
-        # Open the first entry in the list
         # self.open_stuff(actionlist[0])
-        return actionlist[0] 
+        return self.actions[genre][ind]
+
+    def populate_from_spotify(self, genre):
+
+        headers = {
+            "Authorization": "Bearer %s"%generate_spotify_token()
+        }
+
+        r = requests.get("https://api.spotify.com/v1/recommendations/available-genre-seeds",
+                headers=headers)
+        if r.status_code == 200:    
+            data = json.loads(r.text)
+        self.actions[genre] = []
+        q = requests.get("https://api.spotify.com/v1/search?q=genre:" + genre + "&type=track", headers=headers)
+        
+        dataq = json.loads(q.text)
+        count = 0
+        for track in dataq['tracks']['items']:
+            print("Processing Track %s" % str(count))
+            obj = {
+                "id": track['id'],
+                "name": track['name'],
+                'genre': genre,
+                'preview_url': track['preview_url'],
+                'albumart': track['album']['images'][0]
+            }
+            self.actions[genre].append(obj)
+            if count == 20:
+                break
+
+def generate_spotify_token():
+    credentials = oauth2.SpotifyClientCredentials(
+        client_id='4fe3fecfe5334023a1472516cc99d805',
+        client_secret='0f02b7c483c04257984695007a4a8d5c')
+    token = credentials.get_access_token()
+
+    return token

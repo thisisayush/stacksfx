@@ -93,7 +93,7 @@ def GetEmotionSongView(request, mood):
 
     s = SongPredictor()
 
-    return HttpResponse(static("portal/music/%s"%s.choose_random_action(mood)))
+    return JsonResponse(s.choose_random_action(mood))
 
 def TrainView(request):
 

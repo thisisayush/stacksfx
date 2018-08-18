@@ -4,7 +4,7 @@
 <head>
     <meta charset="utf-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <title>Page Title</title>
+    <title>StacksFX</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css" integrity="sha384-MCw98/SFnGE8fJT3GXwEOngsV7Zt27NXFoaoApmYm81iuXoPkFOJwJ8ERdknLPMO" crossorigin="anonymous">
@@ -24,8 +24,8 @@
             position: relative;
         }
         .avatar{
-            width: 100px;
-            height: 100px;
+            width: 200px;
+            height: 200px;
             border-radius: 50%;
             box-shadow: 0 0 5px #000;
             overflow: hidden;
@@ -38,7 +38,7 @@
         #video{
             transform: scale(1.5);
         }
-        #moodDetector, #train{
+        #moodDetector, #train, #faceDetector{
             position: fixed;
             width: 100vw;
             height: 100vh;
@@ -48,6 +48,9 @@
             left: 0;
             z-index: 999999;
             display: none;
+        }
+        #faceDetector{
+            display: block;
         }
         .absolute-center{
             position: absolute;
@@ -61,6 +64,11 @@
         #train .absolute-center{ 
             width: 80%;
             height: 220px;
+            text-align: center;
+        }
+        #faceDetector .absolute-center{
+            width: 50%;
+            height: 250px;
             text-align: center;
         }
         #moodDetector .mood-presenter,
@@ -89,6 +97,9 @@
             background-color: #FFF;
             color: #1E8BC3;
         }
+        #track-container{
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -99,12 +110,14 @@
     </div>
     <div class="container-fluid" id="faceDetector">
         <!-- <div class="alert alert-info" id="mainAlert"></div> -->
-        <div class="row">
-            <div class="avatar">
+        <div class="absolute-center">
+            <div class="avatar mx-auto my-3">
                 <img src="{% static 'portal/images/avatar.png' %}" id="avatar"/>
                 <video id="video">Camera Feed Initializing</video>
-                <span id="status_text"></span>
-                <div class="progress-circular"></div>
+            </div>
+            <div class="alert alert-info" id="mainAlert"></div>
+            <div class="progress" id="imageProgress">
+                <div class="progress-bar" style="width:0%"></div>
             </div>
         </div>
     </div>
@@ -115,6 +128,16 @@
             </div>
             <div class="mood-text">Detecting</div>
             <button class="retrain mood-button">Retrain</button>
+            <br>
+            <div class="row" id="track-container">
+                <div class="col-12">
+                    <img src="" style="width: 50px; height: 50px;" class="track-image"> Title: <a href="#" class="track-link"><span class="track-title"></span></a> Genre: <span class="track-genre"></span>
+                </div>
+                <audio id="musicPlayer" controls="controls" class="mx-auto mt-3">
+                    <source id="mpSource1" src=""></source>
+                </audio>
+            </div>
+            
         </div>
     </div>
     <div class="container-fluid" id="train">
@@ -125,9 +148,6 @@
             <div class="mood-text">Detecting</div>
         </div>
     </div>
-    <audio id="musicPlayer" controls="controls">
-        <source id="mpSource1" src=""></source>
-    </audio>
     <script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.3/umd/popper.min.js" integrity="sha384-ZMP7rVo3mIykV+2+9J3UJ46jBk0WLaUAdn689aCwoqbBJiSnjAK/l8WvCWPIPm49" crossorigin="anonymous"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/js/bootstrap.min.js" integrity="sha384-ChfqqxuZUCnJSK3+MXmPNIyE6ZbWh2IMqE241rYiqJxyMiZ6OW/JmZQ5stwEULTy" crossorigin="anonymous"></script>
@@ -178,6 +198,7 @@
         }
 
         function startCapturingFrames(callback){
+            $("#faceDetector").fadeIn();
             var timer = setInterval(function(){
                 
                 progress.css("width", (imageSuccessCount*100/16) + "%");
@@ -240,7 +261,7 @@
             // $("#moodDetector").fadeIn();
             stopCapturingFrames();
             avatar.fadeIn();
-            $("#video").fadeOut();
+            $("#faceDetector").fadeOut();
             $("#moodDetector").fadeIn();
             var mood_timer = startAnimatedMoods();
             
@@ -275,8 +296,13 @@
                 url: ajaxURL,
                 method: 'GET',
                 success: function(response){
-                    document.getElementById("mpSource1").src = response;
+                    document.getElementById("mpSource1").src = response['preview_url'];
+                    $(".track-title").html(response['name']);
+                    $(".track-image").attr("src", response['albumart']['url'])
+                    $(".track-genre").html(response['genre']);
+                    $(".track-link").attr("href", response['url']);
                     document.getElementById("musicPlayer").load();
+                    $("#track-container").fadeIn();
                     document.getElementById("musicPlayer").play();
                 }
             });
@@ -298,7 +324,7 @@
                 type: 'POST',
                 success: function(response){
                     if(response['status'] == true){
-                        alert.html("Image Validated!");
+                        alert.html("Working");
                         imageSuccessCount++;
                         imageData.push(b64Image);
                     }else{
@@ -332,7 +358,7 @@
                 count++;
                 if(count==4){
                     clearInterval(timer);
-                    setMoodDetectorText("You're Looking Great!", train);
+                    setMoodDetectorText("You're Looking Great! It'll be over in a minute", train);
                     resetCaptureFrames();
                     startCapturingFrames(happyCompleted);
                 }else{
@@ -352,7 +378,7 @@
                     count++;
                     if(count==4){
                         clearInterval(timer);
-                        setMoodDetectorText("You're Looking Great!", train);
+                        setMoodDetectorText("Don't Laugh! It'll be over in a moment!", train);
                         resetCaptureFrames();
                         startCapturingFrames(sadCompleted);
                     }else{
@@ -378,7 +404,7 @@
                     success: function(response){
                         console.log(response);
                         if("success" in response && response["success"] == true){
-                            setMoodDetectorText("Completed! Accuracy: " + response['accuracy'], train);
+                            setMoodDetectorText("Completed! Please refresh!", train);
                         }else{
                             setMoodDetectorIcon("sad", train);
                             setMoodDetectorText("An Error Occured", train);

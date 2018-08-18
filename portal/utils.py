@@ -258,8 +258,8 @@ class SongPredictor:
     actions = {}
 
     genre_mapping = {
-        "happy": ["pop", "happy", "afrobeat"],
-        "sad": ["sad"]
+        "happy": ["pop", "happy"],
+        "sad": ["sad",  "afrobeat"]
     }
 
     # def __init__(self):
@@ -284,16 +284,24 @@ class SongPredictor:
 
     def choose_random_action(self, emotion):
         genre = self.predict_genre(emotion)
-        self.populate_from_spotify(genre)
-        # get list of files for detected emotion
-        # actionlist = [x for x in self.actions[genre]] 
-        ind = random.randint(0, len(self.actions[genre])-1)
-        # Randomly shuffle the list
-        # self.open_stuff(actionlist[0])
+        ind = 0
+        while len(self.actions.get(genre, [])) <= 0:
+            genre = self.predict_genre(emotion)
+            self.populate_from_spotify(genre)
+            # get list of files for detected emotion
+            # actionlist = [x for x in self.actions[genre]] 
+            try: 
+                ind = random.randint(0, len(self.actions[genre])-1)
+                if ind > len(self.actions[genre]):
+                    ind = len(self.actions[genre])
+            except ValueError:
+                ind = 0
+            # Randomly shuffle the list
+            # self.open_stuff(actionlist[0])
         return self.actions[genre][ind]
 
     def populate_from_spotify(self, genre):
-
+        print("Contacting Spotify")
         headers = {
             "Authorization": "Bearer %s"%generate_spotify_token()
         }
@@ -314,12 +322,14 @@ class SongPredictor:
                 "name": track['name'],
                 'genre': genre,
                 'preview_url': track['preview_url'],
-                'albumart': track['album']['images'][0]
+                'albumart': track['album']['images'][0],
+                "url": track['external_urls']['spotify']
             }
             self.actions[genre].append(obj)
             if count == 20:
                 break
-
+        print("Spotify End")
+    
 def generate_spotify_token():
     credentials = oauth2.SpotifyClientCredentials(
         client_id='4fe3fecfe5334023a1472516cc99d805',

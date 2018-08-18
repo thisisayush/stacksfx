@@ -22,17 +22,20 @@ class FaceRecogniser:
     facedict = {}
 
     # Define Emotions
-    emotions = ["angry", "happy", "sad", "neutral"]
+    emotions = ["happy", "sad"]
 
 
-    def __init__(self):
+    def __init__(self, session, training_mode=False):
+        self.session = session
         try:
             print("Checking if model is trained...")
-            self.fishface.read("trained_emoclassifier.xml")
+            self.fishface.read("temp/%s/trained_emoclassifier.xml"%self.session)
             print("Models are trained. We're good to go...")
         except Exception as e:
-            print("Error: You do not have a trained model, please run program with --update flag first")
-            return False
+            if training_mode:
+                print("Training Mode is on!")
+            if not training_mode:
+                print("Error: You do not have a trained model, please run program with --update flag first")
 
     
     def open_stuff(self, filename): 
@@ -62,22 +65,25 @@ class FaceRecogniser:
             self.save_face(self.emotions[i], images[self.emotions[i]])
 
         print("collected images, looking good! Now updating model...")
-        update.update(self.emotions)
+        u = update(self.session, self.emotions)
         print("Done!")
+        return u.accuracy
 
     def save_face(self, emotion, images):
         """Save face data for emotion"""
 
         print("\n\nSaving faces for emotion %s with %s images" % (emotion, str(len(images))))
+        self.facedict = {}
         for image in images:
             self.detect_face(image)
         
         # Store faces in dataset directory
         for x in self.facedict.keys():
-            cv2.imwrite("dataset/%s/%s.jpg" %(emotion, len(glob.glob("dataset/%s/*" %emotion))), self.facedict[x])
+            print("Creating Image for emotion %s in dataset/%s/"%(emotion,emotion))
+            cv2.imwrite("temp/%s/dataset/%s/%s.jpg" %(self.session, emotion, len(glob.glob("temp/%s/dataset/%s/*" %(self.session,emotion)))), self.facedict[x])
         
         # # Empty the dict
-        self.facedict.clear() 
+        
     
     def detect_face(self, image):
         """Detects and returns a face from a frame"""
@@ -107,6 +113,7 @@ class FaceRecogniser:
         for (x, y, w, h) in face:
             faceslice = clahe_image[y:y+h, x:x+w]
             faceslice = cv2.resize(faceslice, (350, 350))
+        print("cropping face")
         self.facedict["face%s" %(len(self.facedict)+1)] = faceslice
         return faceslice
 
@@ -115,10 +122,10 @@ class FaceRecogniser:
         """Checks for dataset folders for training"""
         
         for x in self.emotions:
-            if os.path.exists("dataset/%s" %x):
+            if os.path.exists("temp/%s/dataset/%s" %(self.session, x)):
                 pass
             else:
-                os.makedirs("dataset/%s" %x)
+                os.makedirs("temp/%s/dataset/%s" %(self.session, x))
 
     def recognize_emotion(self):
         """Recognizes the emotion, selects a random file on the emotion and plays it"""
@@ -164,7 +171,7 @@ class update:
     data = {}
 
     def get_files(self, emotion): #Define function to get file list, randomly shuffle it and split 80/20
-        files = glob.glob("dataset/%s/*" %emotion)
+        files = glob.glob("temp/%s/dataset/%s/*" %(self.session, emotion))
         random.shuffle(files)
         training = files[:int(len(files)*0.8)] #get first 80% of file list
         prediction = files[-int(len(files)*0.2):] #get last 20% of file list
@@ -213,22 +220,24 @@ class update:
                 cnt += 1
         accuracy = ((100*correct)/(correct + incorrect))
         print("Accuracy: " + str(accuracy))
+        return accuracy
 
-    def __init__(self, ems):
+    def __init__(self, session, ems):
+        self.session = session
         try:
-            self.fishface.read("trained_emoclassifier.xml")
+            self.fishface.read("temp/%s/trained_emoclassifier.xml"%self.session)
         except:
             print("Training Initial Emotions")
-            self.emotions = ["anger", "disgust", "fear", "happy", "neutral", "sad", "surprise"]
+            self.emotions = ["happy", "sad"]
             self.run_recognizer()
         
         print("Updating Model")
         self.emotions = ems
-        self.run_recognizer()
-        self.fishface.write("trained_emoclassifier.xml")
+        self.accuracy = self.run_recognizer()
+        self.fishface.write("temp/%s/trained_emoclassifier.xml"%self.session)
     
     def __del__(self):
-        self.fishface.write("trained_emoclassifier.xml")
+        self.fishface.write("temp/%s/trained_emoclassifier.xml"%self.session)
     # #Now run it
     # metascore = []
     # for i in range(0,10):
@@ -250,10 +259,10 @@ class SongPredictor:
 
         # Read Emotion-Song Mapping from Excel
         df = pandas.read_excel("EmotionLinks.xlsx") #open Excel file
-        self.actions["angry"] = [x for x in df.angry.dropna()] #We need de dropna() when columns are uneven in length, which creates NaN values at missing places. The OS won't know what to do with these if we try to open them.
+        #self.actions["angry"] = [x for x in df.angry.dropna()] #We need de dropna() when columns are uneven in length, which creates NaN values at missing places. The OS won't know what to do with these if we try to open them.
         self.actions["happy"] = [x for x in df.happy.dropna()]
         self.actions["sad"] = [x for x in df.sad.dropna()]
-        self.actions["neutral"] = [x for x in df.neutral.dropna()]
+        #self.actions["neutral"] = [x for x in df.neutral.dropna()]
 
 
     def choose_random_action(self, emotion):

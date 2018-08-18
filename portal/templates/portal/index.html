@@ -1,3 +1,4 @@
+{% load static %}
 <!DOCTYPE html>
 <html>
 <head>
@@ -7,31 +8,122 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css" integrity="sha384-MCw98/SFnGE8fJT3GXwEOngsV7Zt27NXFoaoApmYm81iuXoPkFOJwJ8ERdknLPMO" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.2.0/css/all.css" integrity="sha384-hWVjflwFxL6sNzntih27bfxkr27PmbbK/iSvJ+a4+0owXq79v+lsFkW54bOGbiDQ" crossorigin="anonymous">
 
     <!-- <link rel="stylesheet" type="text/css" media="screen" href="main.css" /> -->
     <!-- <script src="main.js"></script> -->
+    <style>
+        body, html{
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
+        }
+        #faceDetector{
+            position: relative;
+        }
+        .avatar{
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            box-shadow: 0 0 5px #000;
+            overflow: hidden;
+        }
+        #status_text, #video, #avatar{
+            display: none;
+            width: inherit;
+            min-height: 100%;
+        }   
+        #video{
+            transform: scale(1.5);
+        }
+        #moodDetector, #train{
+            position: fixed;
+            width: 100vw;
+            height: 100vh;
+            background-color: #1E8BC3;
+            color: #FFF;
+            top: 0;
+            left: 0;
+            z-index: 999999;
+            display: none;
+        }
+        .absolute-center{
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            margin: auto;
+        }
+        #moodDetector .absolute-center,
+        #train .absolute-center{ 
+            width: 80%;
+            height: 220px;
+            text-align: center;
+        }
+        #moodDetector .mood-presenter,
+        #train .mood-presenter{
+            height: 4em;
+        }
+        #moodDetector .mood,
+        #train .mood{
+            font-size: 4em;
+        }
+        #moodDetector .mood-text,
+        #train .mood-text{
+            font-size: 3em;
+        }
+        .mood-button{
+            font-size: 1.5em;
+            margin-top: 10px;
+            background: transparent;
+            border: 2px solid #FFF;
+            color: #FFF;
+            transition: 0.5s all;
+            cursor: pointer;
+            padding: 5px 15px;
+        }
+        .mood-button:hover{
+            background-color: #FFF;
+            color: #1E8BC3;
+        }
+    </style>
 </head>
 <body>
     {% csrf_token %}
+    <canvas id="canvas" style="display: none;">
+    </canvas>
+    <div id="capturedFrames" style="display: none;">
+    </div>
     <div class="container-fluid" id="faceDetector">
-        <video id="video">Camera Feed Initializing</video>
-        <canvas id="canvas">
-        </canvas>
-        <div>
-            <div class="alert alert-info" id="mainAlert">
-    
+        <!-- <div class="alert alert-info" id="mainAlert"></div> -->
+        <div class="row">
+            <div class="avatar">
+                <img src="{% static 'portal/images/avatar.png' %}" id="avatar"/>
+                <video id="video">Camera Feed Initializing</video>
+                <span id="status_text"></span>
+                <div class="progress-circular"></div>
             </div>
-        </div>
-        <div>
-            <div class="progress">
-                <div class="progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="0" style="width:0%" id="imageProgress"></div>
-            </div>
-        </div>
-        <div id="capturedFrames">
         </div>
     </div>
     <div class="container-fluid" id="moodDetector">
-        
+        <div class="absolute-center">
+            <div class="mood-presenter">
+                <i class="far fa-smile-beam mood" data-index="0"></i>
+            </div>
+            <div class="mood-text">Detecting</div>
+            <button class="retrain mood-button">Retrain</button>
+        </div>
+    </div>
+    <div class="container-fluid" id="train">
+        <div class="absolute-center">
+            <div class="mood-presenter">
+                <i class="far fa-smile-beam mood" data-index="0"></i>
+            </div>
+            <div class="mood-text">Detecting</div>
+        </div>
     </div>
     <audio id="musicPlayer" controls="controls">
         <source id="mpSource1" src=""></source>
@@ -57,53 +149,101 @@
         
         var imageSuccessCount = 0, imagePending = 0;
         var imageData = [];
+        var avatar = $("#avatar");
+        var status_text = $(".status_text");
         var canvas = document.getElementById("canvas");
         var video = document.getElementById("video");
         var alert = $("#mainAlert");
         var progress = $("#imageProgress");
         var vstream = null;
+        var available_mood_classes = ["fa-smile-beam", "fa-frown-open", "fa-angry"];
         function GetCameraPermissions(){
             if(!navigator.mediaDevices){
                 alert("MediaDevices API is not supported on your browser! Exiting!");
             }
             return navigator.mediaDevices.getUserMedia({video:true}).then(cameraInitialized);
         }
+        function resetCaptureFrames(){
+            imageSuccessCount = 0;
+            imagePending = 0;
+            imageData = [];
+        }
 
         function cameraInitialized(stream){ 
             video.srcObject = stream;
             vstream = stream;
             video.play();
+            avatar.fadeOut();
+            $("#video").fadeIn();
         }
-        
-        video.addEventListener('canplay', startCapturingFrames);
 
-        function startCapturingFrames(){
+        function startCapturingFrames(callback){
             var timer = setInterval(function(){
                 
                 progress.css("width", (imageSuccessCount*100/16) + "%");
 
-                if(imageSuccessCount<16 && imagePending<=5){
-                    canvas.width = video.videoWidth;
-                    canvas.height = video.videoHeight;
-                    var context = canvas.getContext('2d');
-                    context.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
-                    var data = canvas.toDataURL();
-                    sendImageFrame(data);
-                    addFrame(data);
-                    imagePending++;
+                if(imageSuccessCount<16){
+                    if(imagePending<=5){
+                        canvas.width = video.videoWidth;
+                        canvas.height = video.videoHeight;
+                        var context = canvas.getContext('2d');
+                        context.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
+                        var data = canvas.toDataURL();
+                        sendImageFrame(data);
+                        // addFrame(data);
+                        imagePending++;
+                    }
                 }else{
                     alert.html("Completed!");
-                    vstream.getTracks()[0].stop();
                     clearInterval(timer);
-                    startMoodDetection();
+                    callback();
                 }
-            }, 250);
+            }, 100);
+        }
+        function stopCapturingFrames(){
+            vstream.getTracks()[0].stop();
         }
 
+        function startAnimatedMoods(){
+            var last_class = "fa-smile-beam";
+            
+            var timer = setInterval(function(){
+                var aIndex = parseInt($("#moodDetector .mood").attr("data-index"));
+                var nextIndex = aIndex + 1;
+                if(nextIndex == available_mood_classes.length)
+                    nextIndex = 0;
+                $("#moodDetector .mood-presenter .mood").fadeOut();
+                setTimeout(function(){
+                    $("#moodDetector .mood-presenter .mood").removeClass(available_mood_classes[aIndex]).addClass(available_mood_classes[nextIndex]).attr("data-index", nextIndex).fadeIn();
+                }, 400);
+            }, 1000);
+            return timer;
+        }
+        function setMoodDetectorIcon(mood, container){
+            var mood_classes = {
+                "sad": "fa-frown-open",
+                "happy": "fa-smile-beam",
+                "angry": "fa-angry",
+                "neutral": "fa-frown-open"
+            }
+            var aIndex = parseInt(container.find(".mood").attr("data-index"));
+            var nextIndex = available_mood_classes.indexOf(mood_classes[mood]);
+            setTimeout(function(){
+                container.find(".mood").removeClass(available_mood_classes[aIndex]).addClass(available_mood_classes[nextIndex]).attr("data-index", nextIndex);
+            }, 400);
+        }
+        function setMoodDetectorText(text, container){
+            container.find(".mood-text").html(text);
+        }
         function startMoodDetection(){
-            $("#faceDetector").fadeOut();
+            // $("#faceDetector").fadeOut();
+            // $("#moodDetector").fadeIn();
+            stopCapturingFrames();
+            avatar.fadeIn();
+            $("#video").fadeOut();
             $("#moodDetector").fadeIn();
-            $("#moodDetector").html("Detecting Mood!");
+            var mood_timer = startAnimatedMoods();
+            
             var images = {};
             for(var i in imageData){
                 var key = "image"+i;
@@ -115,14 +255,17 @@
                 data: images,
                 type: 'POST',
                 success: function(response){
+                    console.log(response);
                     if(response['success'] == true){
-                        $("#moodDetector").html("You're " + response['mood'] + ", aren't you? <br> Fetching music for you!");
+                        clearInterval(mood_timer);
+                        setMoodDetectorIcon(response['mood'], $("#moodDetector"));
+                        $("#moodDetector .mood-text").html("You're " + response['mood'] + ", aren't you?");
                         loadMusic(response['mood']);
                     }
                     else
                         $("#moodDetector").html(response['msg']);
                 }
-            })
+            });
         }
         
         function loadMusic(emotion){
@@ -136,7 +279,7 @@
                     document.getElementById("musicPlayer").load();
                     document.getElementById("musicPlayer").play();
                 }
-            })
+            });
         }
 
         function getB64Data(data){
@@ -175,8 +318,96 @@
 
             images.appendChild(img);
         }
-        GetCameraPermissions();
 
+        function startTrainingMode(){
+            $("#moodDetector").fadeOut();
+            $("#train").fadeIn();
+            var moods = ["happy", "sad"];
+            var train = $("#train");
+            images = {};
+            setMoodDetectorIcon("happy", train);
+            setMoodDetectorText("Please Look Happy!", train);
+            var count = 0;
+            var timer = setInterval(function(){
+                count++;
+                if(count==4){
+                    clearInterval(timer);
+                    setMoodDetectorText("You're Looking Great!", train);
+                    resetCaptureFrames();
+                    startCapturingFrames(happyCompleted);
+                }else{
+                    setMoodDetectorText("Please Look Happy in "+ (3-count), train);
+                }
+            }, 1000);
+            function happyCompleted(){
+                for(var i in imageData){
+                    var key = "happy-image"+i;
+                    var value = imageData[i];
+                    images[key] = value;
+                }
+                setMoodDetectorIcon("sad", train);
+                setMoodDetectorText("Please Look Sad!", train);
+                var count = 0;
+                var timer = setInterval(function(){
+                    count++;
+                    if(count==4){
+                        clearInterval(timer);
+                        setMoodDetectorText("You're Looking Great!", train);
+                        resetCaptureFrames();
+                        startCapturingFrames(sadCompleted);
+                    }else{
+                        setMoodDetectorText("Please Look Sad in " +(3-count), train);
+                    }
+                }, 1000);
+                
+            }
+            function sadCompleted(){
+                for(var i in imageData){
+                    var key = "sad-image"+i;
+                    var value = imageData[i];
+                    images[key] = value;
+                }
+                // resetCaptureFrames();
+                stopCapturingFrames();
+                setMoodDetectorIcon("happy", train);
+                setMoodDetectorText("Training.. This might take a while!", train);
+                $.ajax({
+                    url: "{% url 'portal:train' %}",
+                    data: images,
+                    type: 'POST',
+                    success: function(response){
+                        console.log(response);
+                        if("success" in response && response["success"] == true){
+                            setMoodDetectorText("Completed! Accuracy: " + response['accuracy'], train);
+                        }else{
+                            setMoodDetectorIcon("sad", train);
+                            setMoodDetectorText("An Error Occured", train);
+                        }
+                    }
+                });
+            }
+        }
+        
+        $(".retrain").click(function(e){
+            GetCameraPermissions();
+            $(video).one("canplay", function(e){
+                startTrainingMode(false);
+            });
+        });
+        function init(){
+            avatar.fadeIn();
+            GetCameraPermissions();
+            
+            $(video).one('canplay', function(){
+                {% if is_first_run %}
+                startTrainingMode(false);
+                {% else %}
+                startCapturingFrames(startMoodDetection);
+                {% endif %}
+            });
+        }
+        
+        init();
     </script>
 </body>
 </html>

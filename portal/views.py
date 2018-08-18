@@ -11,8 +11,16 @@ from django.contrib.staticfiles.templatetags.staticfiles import static
 
 
 def IndexView(request):
+    is_first_run = True
+    if "is_first_run" in request.session and request.session['is_first_run'] != True:
+       is_first_run = False
+    else:
+        request.session['sessionid'] = str(time.time())
+    
+    if not os.path.exists("temp/%s"%request.session['sessionid']):
+        os.makedirs("temp/%s"%request.session['sessionid'])
 
-    return render(request, "portal/index.html")
+    return render(request, "portal/index.html", {"is_first_run": is_first_run})
 
 def FaceDetectionView(request):
     
@@ -31,7 +39,7 @@ def FaceDetectionView(request):
             
             fh.write(base64.b64decode(img))
 
-    f = FaceRecogniser()
+    f = FaceRecogniser(request.session['sessionid'])
     if not f:
         return HttpResponse("Error!")
     
@@ -70,13 +78,15 @@ def MoodDetectionView(request):
                 fh.write(base64.b64decode(img))
                 images.append(file_name)
     
-    f = FaceRecogniser()
+    f = FaceRecogniser(request.session['sessionid'])
+    to_return = {}
     mood = f.run_detection(images)
-
+    to_return = {"success": True, "mood": mood}
+    
     if os.path.exists(d):
         shutil.rmtree(d)
-
-    return JsonResponse({"success": True, "mood": mood})
+    
+    return JsonResponse(to_return)
 
 
 def GetEmotionSongView(request, mood):
@@ -84,3 +94,45 @@ def GetEmotionSongView(request, mood):
     s = SongPredictor()
 
     return HttpResponse(static("portal/music/%s"%s.choose_random_action(mood)))
+
+def TrainView(request):
+
+    images = {
+        "happy": [],
+        "sad": []
+    }
+    if request.method != "POST":
+        return JsonResponse({"success": False, "msg": "Only POST Requests are accepted"})
+    
+    img_len = 16
+    d = "temp/train-"+str(time.time())
+    if not os.path.exists(d):
+        os.makedirs(d)
+
+    f = FaceRecogniser(request.session['sessionid'])
+    
+    for mood in f.emotions:
+        for i in range(img_len):
+            img = request.POST.get("%s-image%s"%(mood, str(i)), None)
+            
+            if img is not None:
+                missing_padding = len(img) % 4
+                if missing_padding != 0:
+                    img += '='* (4 - missing_padding)
+
+                file_name = "%s/%s.png"%(d,str(time.time()))
+
+                with open(file_name, "wb") as fh:
+                    fh.write(base64.b64decode(img))
+                    images[mood].append(file_name)
+    
+    to_return = {}
+    
+    accuracy = f.update_model(images)
+    to_return = {"success": True, "accuracy": accuracy}
+    request.session['is_first_run'] = False
+
+    if os.path.exists(d):
+        shutil.rmtree(d)
+    
+    return JsonResponse(to_return)

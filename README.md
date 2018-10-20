@@ -1,6 +1,11 @@
 # StacksFX - The emotion-based music player
 
+### [Blog Post](https://mixstersite.wordpress.com/2018/08/20/stacksfx-at-hackiiit-my-1-hackathon/) | [Slides](https://bit.ly/vemotions)
+
 A revolutionary music player that recommends songs by detecting your emotions through the camera and constantly learning from your actions through machine learning with a constant feedback loop.
+
+The winning project in the hackathon **HackIIITD** of Indraprastha Institute of Information Technology, Delhi's techfest **ESYA**
+
 
 ## Introduction 
 
@@ -21,5 +26,5 @@ With every recommendation, there is a feedback loop in place; that learns prefer
 - Spotify API for song recommendations
 - Django for the backend 
 
-## Under Development 
-Coming up !!
+## License
+The source code is under MIT license.
